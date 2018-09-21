@@ -1,5 +1,6 @@
 extern crate reqwest;
 use reqwest::{Client, Response, Result};
+use model::{Me, Team};
 
 #[derive(Debug, Deserialize)]
 pub struct RtmConnectResponse {

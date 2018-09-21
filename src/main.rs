@@ -5,6 +5,7 @@ extern crate ws;
 extern crate serde_derive;
 
 mod api;
+mod model;
 mod rtm;
 use std::env;
 

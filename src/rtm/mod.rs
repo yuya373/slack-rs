@@ -64,5 +64,8 @@ impl Handler for Client {
 }
 
 pub fn connect(response: &RtmConnectResponse) {
-    ws::connect(response.url.clone(), |out| Client::new(out)).unwrap();
+    match &response.url {
+        Some(url) => ws::connect(url.clone(), |out| Client::new(out)).unwrap(),
+        None => println!("Invalid Connect Response: {:?}", response),
+    };
 }

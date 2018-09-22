@@ -8,9 +8,9 @@ use reqwest::header::HeaderMap;
 pub struct RtmConnectResponse {
     pub ok: bool,
     pub url: Option<String>,
-    team: Option<Team>,
+    pub team: Option<Team>,
     #[serde(rename = "self")]
-    me: Option<Me>,
+    pub me: Option<Me>,
     pub error: Option<String>,
 }
 

@@ -13,22 +13,39 @@ mod config;
 mod model;
 mod rtm;
 use api::RtmConnectResponse;
+use futures::sync::mpsc;
 use futures::Future;
-use reqwest::async::{Client, Response};
+use reqwest::async::Client;
+
+#[derive(Debug)]
+pub enum ActionType {
+    Hello,
+}
+#[derive(Debug)]
+pub struct Action {
+    t: ActionType,
+}
+type Tx = mpsc::UnboundedSender<Action>;
+type Rx = mpsc::UnboundedReceiver<Action>;
 
 fn main() {
     let config = config::get_config().unwrap();
     let client = Client::new();
     // let workspace = config.workspaces[0];
+
     let f = futures::future::ok(config.workspaces).map(move |workspaces| {
-        for workspace in workspaces {
-            let json = |mut response: Response| response.json::<RtmConnectResponse>();
+        for mut workspace in workspaces {
+            let (tx, rx) = mpsc::unbounded::<Action>();
+
             let f = api::rtm_connect_request(&workspace, &client)
                 .send()
-                .and_then(json)
-                .map(|resp| {
+                .and_then(|mut res| res.json::<RtmConnectResponse>())
+                .map(move |resp| {
                     if resp.ok {
-                        rtm::connect(&resp)
+                        workspace.merge(resp, rx);
+                        let url = workspace.ws_url.clone().unwrap();
+                        tokio::spawn(workspace.process());
+                        rtm::connect(&url, tx);
                     } else {
                         panic!(resp.error.unwrap())
                     }

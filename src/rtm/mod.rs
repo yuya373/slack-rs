@@ -1,16 +1,21 @@
 extern crate ws;
-use api::RtmConnectResponse;
+use model::Workspace;
 use ws::util::Token;
 use ws::{CloseCode, Error, ErrorKind, Handler, Handshake, Message, Result, Sender};
 
 struct Client {
     out: Sender,
     message_id: u64,
+    tx: super::Tx,
 }
 
 impl Client {
-    fn new(out: Sender) -> Client {
-        Client { out, message_id: 0 }
+    fn new(out: Sender, tx: super::Tx) -> Client {
+        Client {
+            out,
+            message_id: 0,
+            tx,
+        }
     }
 
     fn send(&mut self, message: Message) -> Result<()> {
@@ -28,8 +33,8 @@ impl Client {
 
 const PING: Token = Token(0);
 impl Handler for Client {
-    fn on_open(&mut self, shake: Handshake) -> Result<()> {
-        println!("Handshake: {:?}", shake);
+    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
+        // println!("Handshake: {:?}", shake);
         println!("Connection Opened");
         self.out.timeout(5000, PING)?;
         Ok(())
@@ -37,6 +42,10 @@ impl Handler for Client {
 
     fn on_message(&mut self, message: Message) -> Result<()> {
         println!("→ Incoming:    {:?}", message);
+        self.tx
+            .unbounded_send(super::Action {
+                t: super::ActionType::Hello,
+            }).unwrap();
         Ok(())
     }
 
@@ -63,9 +72,6 @@ impl Handler for Client {
     }
 }
 
-pub fn connect(response: &RtmConnectResponse) {
-    match &response.url {
-        Some(url) => ws::connect(url.clone(), |out| Client::new(out)).unwrap(),
-        None => println!("Invalid Connect Response: {:?}", response),
-    };
+pub fn connect(url: &str, tx: super::Tx) {
+    ws::connect(url, |out| Client::new(out, tx.clone())).unwrap()
 }

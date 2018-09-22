@@ -1,4 +1,19 @@
 #[derive(Debug, Deserialize)]
+pub struct Workspace {
+    team: Option<Team>,
+    me: Option<Me>,
+    pub token: String,
+}
+impl Workspace {
+    pub fn new(token: &str) -> Workspace {
+        Workspace {
+            token: token.to_string(),
+            team: None,
+            me: None,
+        }
+    }
+}
+#[derive(Debug, Deserialize)]
 pub struct Team {
     id: String,
     name: String,

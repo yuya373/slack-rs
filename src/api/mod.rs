@@ -1,17 +1,18 @@
 extern crate reqwest;
 
-use model::{Me, Team};
+use model::{Me, Team, Workspace};
 use reqwest::async::{Client, Request, RequestBuilder, Response};
 use reqwest::header::HeaderMap;
 use reqwest::Result;
 
 #[derive(Debug, Deserialize)]
 pub struct RtmConnectResponse {
-    ok: bool,
+    pub ok: bool,
     pub url: Option<String>,
     team: Option<Team>,
     #[serde(rename = "self")]
     me: Option<Me>,
+    pub error: Option<String>,
 }
 
 fn build_get(client: &Client, url: &str, token: &str) -> RequestBuilder {
@@ -23,11 +24,11 @@ fn build_get(client: &Client, url: &str, token: &str) -> RequestBuilder {
     client.get(url).headers(h)
 }
 
-pub fn rtm_connect_request(token: &str, client: &Client) -> Result<Request> {
+pub fn rtm_connect_request(workspace: &Workspace, client: &Client) -> RequestBuilder {
     let url = "https://slack.com/api/rtm.connect";
     let query = [("mpim_aware", "1")];
-    let builder = build_get(client, url, token);
-    builder.query(&query).build()
+    let builder = build_get(client, url, &workspace.token);
+    builder.query(&query)
 }
 
 pub enum ConversationsListTypes {

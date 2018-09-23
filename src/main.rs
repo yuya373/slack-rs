@@ -4,6 +4,7 @@ extern crate reqwest;
 extern crate serde;
 extern crate tokio;
 extern crate toml;
+extern crate url;
 extern crate ws;
 #[macro_use]
 extern crate serde_derive;
@@ -43,9 +44,12 @@ fn main() {
                 .map(move |resp| {
                     if resp.ok {
                         workspace.merge(resp, rx);
-                        let url = workspace.ws_url.clone().unwrap();
+                        let url = workspace.ws_url();
+                        let mut conn = ws::Builder::new().build(rtm::Connection::new(tx)).unwrap();
+                        conn.connect(url::Url::parse(&url).unwrap()).unwrap();
+                        workspace.set_ws(conn.broadcaster());
                         tokio::spawn(workspace.process());
-                        rtm::connect(&url, tx);
+                        conn.run().unwrap();
                     } else {
                         panic!(resp.error.unwrap())
                     }

@@ -1,9 +1,9 @@
 extern crate ws;
-use model::Workspace;
-use ws::util::Token;
-use ws::{CloseCode, Error, ErrorKind, Handler, Handshake, Message, Result, Sender};
 
-struct Client {
+use ws::util::Token;
+use ws::{CloseCode, Error, ErrorKind, Factory, Handler, Handshake, Message, Result, Sender};
+
+pub struct Client {
     out: Sender,
     message_id: u64,
     tx: super::Tx,
@@ -72,6 +72,31 @@ impl Handler for Client {
     }
 }
 
-pub fn connect(url: &str, tx: super::Tx) {
-    ws::connect(url, |out| Client::new(out, tx.clone())).unwrap()
+pub struct Connection {
+    tx: super::Tx,
 }
+impl Connection {
+    pub fn new(tx: super::Tx) -> Connection {
+        Connection { tx }
+    }
+}
+impl Factory for Connection {
+    type Handler = Client;
+
+    fn connection_made(&mut self, out: Sender) -> Self::Handler {
+        Client::new(out, self.tx.clone())
+    }
+
+    fn client_connected(&mut self, out: Sender) -> Self::Handler {
+        Client::new(out, self.tx.clone())
+    }
+}
+
+// pub fn connect(url: &str, tx: super::Tx) -> Result<&mut WebSocket<Connection>> {
+//     let conn = ws::Builder::new().build(Connection { tx })?;
+//     conn.connect(Url::parse(url).unwrap())
+//     // let handle = conn.broadcaster();
+//     // conn.run();
+//     // Ok(handle)
+//     // ws::connect(url, |out| Client::new(out, tx.clone())).unwrap()
+// }

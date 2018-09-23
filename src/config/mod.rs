@@ -8,7 +8,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 use toml::de::Error;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct Config {
     pub workspaces: Vec<Workspace>,
 }

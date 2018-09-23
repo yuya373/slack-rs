@@ -1,15 +1,18 @@
 use api::RtmConnectResponse;
 use futures::Future;
 use futures::Stream;
+use ws;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct Workspace {
-    pub team: Option<Team>,
-    pub me: Option<Me>,
+    team: Option<Team>,
+    me: Option<Me>,
     pub token: String,
-    pub ws_url: Option<String>,
+    ws_url: Option<String>,
     #[serde(skip)]
-    pub rx: Option<super::Rx>,
+    rx: Option<super::Rx>,
+    #[serde(skip)]
+    ws: Option<ws::Sender>,
 }
 impl Workspace {
     // pub fn new(token: &str) -> Workspace {
@@ -24,6 +27,14 @@ impl Workspace {
         self.me = resp.me;
         self.ws_url = resp.url;
         self.rx = Some(rx);
+    }
+
+    pub fn set_ws(&mut self, ws: ws::Sender) {
+        self.ws = Some(ws);
+    }
+
+    pub fn ws_url(&self) -> String {
+        self.ws_url.clone().unwrap()
     }
 
     pub fn process(self) -> impl Future<Item = (), Error = ()> {

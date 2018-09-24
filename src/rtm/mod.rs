@@ -1,6 +1,8 @@
+extern crate serde_json;
 extern crate ws;
 
 use super::{Action, ActionType};
+use serde_json::Value;
 use ws::util::Token;
 use ws::{CloseCode, Error, ErrorKind, Factory, Handler, Handshake, Message, Result, Sender};
 
@@ -26,10 +28,12 @@ impl Handler for Client {
 
     fn on_message(&mut self, message: Message) -> Result<()> {
         println!("→ Incoming:    {:?}", message);
-        self.tx
-            .unbounded_send(Action {
-                t: ActionType::Hello,
-            }).unwrap();
+        let value: Value = serde_json::from_str(message.as_text()?).unwrap();
+        let message_type = &value["type"].as_str();
+        match message_type {
+            Some("hello") => self.tx.unbounded_send(Action::hello()),
+            _ => Ok(()),
+        }.unwrap();
         Ok(())
     }
 

@@ -2,6 +2,7 @@ extern crate dirs;
 extern crate futures;
 extern crate reqwest;
 extern crate serde;
+extern crate serde_json;
 extern crate tokio;
 extern crate toml;
 extern crate url;
@@ -26,12 +27,17 @@ pub enum ActionType {
 }
 #[derive(Debug)]
 pub struct Action {
-    t: ActionType,
+    Type: ActionType,
 }
 impl Action {
+    pub fn hello() -> Action {
+        Action {
+            Type: ActionType::Hello,
+        }
+    }
     pub fn ping() -> Action {
         Action {
-            t: ActionType::Ping,
+            Type: ActionType::Ping,
         }
     }
 }
@@ -58,9 +64,9 @@ fn main() {
                         let mut conn = ws::Builder::new().build(rtm::Connection::new(tx)).unwrap();
                         let sender = conn.broadcaster();
                         let f = rx.for_each(move |action| {
-                            match action.t {
+                            match action.Type {
                                 ActionType::Ping => workspace.ping(&sender),
-                                _ => {}
+                                ActionType::Hello => println!("Connected to Slack!"),
                             };
                             Ok(())
                         });

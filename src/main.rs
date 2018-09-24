@@ -19,6 +19,7 @@ use futures::sync::mpsc;
 use futures::Future;
 use futures::Stream;
 use reqwest::async::Client;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum ActionType {
@@ -46,17 +47,18 @@ type Tx = mpsc::UnboundedSender<Action>;
 
 fn main() {
     let config = config::get_config().unwrap();
-    let client = Client::new();
+    let client = Arc::new(Client::new());
     // let workspace = config.workspaces[0];
 
     let f = futures::future::ok(config.workspaces).map(move |workspaces| {
         for mut workspace in workspaces {
             let (tx, rx) = mpsc::unbounded::<Action>();
+            let client = client.clone();
 
             let f = api::rtm_connect_request(&workspace, &client)
                 .send()
                 .and_then(|mut res| res.json::<RtmConnectResponse>())
-                .map(move |resp| {
+                .map(|resp| {
                     if resp.ok {
                         resp.team.map(|team| workspace.set_team(team));
                         resp.me.map(|me| workspace.set_me(me));
@@ -66,7 +68,7 @@ fn main() {
                         let f = rx.for_each(move |action| {
                             match action.Type {
                                 ActionType::Ping => workspace.ping(&sender),
-                                ActionType::Hello => println!("Connected to Slack!"),
+                                ActionType::Hello => workspace.hello(&client),
                             };
                             Ok(())
                         });

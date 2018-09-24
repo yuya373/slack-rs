@@ -1,7 +1,7 @@
 extern crate serde_json;
 extern crate ws;
 
-use super::{Action, ActionType};
+use super::Action;
 use serde_json::Value;
 use ws::util::Token;
 use ws::{CloseCode, Error, ErrorKind, Factory, Handler, Handshake, Message, Result, Sender};

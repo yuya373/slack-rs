@@ -1,3 +1,7 @@
+use futures::Future;
+use reqwest::async::Client;
+use serde_json;
+use tokio::spawn;
 use ws::{Message, Result, Sender};
 
 #[derive(Deserialize)]
@@ -38,6 +42,18 @@ impl Workspace {
         let id = self.message_id;
         let ping = format!("{{\"id\": \"{id}\", \"type\": \"ping\"}}", id = id);
         self.send(sender, ping.into()).unwrap();
+    }
+
+    pub fn hello(&mut self, client: &Client) {
+        use api::{conversations_list_request, ConversationsListTypes};
+        println!("Connected to Slack!");
+        let f = conversations_list_request(&self.token, client, ConversationsListTypes::All, None)
+            .send()
+            .and_then(|mut res| res.json::<serde_json::Value>())
+            .map(|res| {
+                println!("conversations.list: {:?}", res);
+            }).map_err(|err| println!("Error in conversations.list: {:?}", err));
+        spawn(f);
     }
 }
 #[derive(Debug, Deserialize)]

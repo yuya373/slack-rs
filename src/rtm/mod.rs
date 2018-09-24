@@ -1,33 +1,17 @@
 extern crate ws;
 
+use super::{Action, ActionType};
 use ws::util::Token;
 use ws::{CloseCode, Error, ErrorKind, Factory, Handler, Handshake, Message, Result, Sender};
 
 pub struct Client {
     out: Sender,
-    message_id: u64,
     tx: super::Tx,
 }
 
 impl Client {
     fn new(out: Sender, tx: super::Tx) -> Client {
-        Client {
-            out,
-            message_id: 0,
-            tx,
-        }
-    }
-
-    fn send(&mut self, message: Message) -> Result<()> {
-        self.message_id += 1;
-        println!("← Outgoing:    {:?}", message);
-        self.out.send(message)
-    }
-
-    fn ping(&mut self) -> Result<()> {
-        let id = self.message_id;
-        let ping = format!("{{\"id\": \"{id}\", \"type\": \"ping\"}}", id = id);
-        self.send(ping.into())
+        Client { out, tx }
     }
 }
 
@@ -43,8 +27,8 @@ impl Handler for Client {
     fn on_message(&mut self, message: Message) -> Result<()> {
         println!("→ Incoming:    {:?}", message);
         self.tx
-            .unbounded_send(super::Action {
-                t: super::ActionType::Hello,
+            .unbounded_send(Action {
+                t: ActionType::Hello,
             }).unwrap();
         Ok(())
     }
@@ -53,22 +37,29 @@ impl Handler for Client {
         match code {
             CloseCode::Normal => println!("The server is done with the connection."),
             CloseCode::Away => println!("The server is leaving"),
-            _ => println!("The server encountered an error: {}", reason),
+            _ => println!(
+                "The server encountered an error: {:?} -> {:?}",
+                code, reason
+            ),
         }
     }
 
     fn on_error(&mut self, err: Error) {
-        println!("Error in rtm: {}", err);
+        println!("Error in rtm: {:?}", err);
     }
 
     fn on_timeout(&mut self, event: Token) -> Result<()> {
         match event {
             PING => {
-                self.ping()?;
+                self.tx.unbounded_send(Action::ping()).unwrap();
                 self.out.timeout(5000, PING)
             }
             _ => Err(Error::new(ErrorKind::Internal, "Invalid timeout token")),
         }
+    }
+
+    fn on_shutdown(&mut self) {
+        println!("Client.on_shutdown ");
     }
 }
 
@@ -89,6 +80,14 @@ impl Factory for Connection {
 
     fn client_connected(&mut self, out: Sender) -> Self::Handler {
         Client::new(out, self.tx.clone())
+    }
+
+    fn connection_lost(&mut self, _: Self::Handler) {
+        println!("Connection.connection_lost");
+    }
+
+    fn on_shutdown(&mut self) {
+        println!("Connection.on_shutdown");
     }
 }
 

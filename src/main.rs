@@ -16,18 +16,27 @@ mod rtm;
 use api::RtmConnectResponse;
 use futures::sync::mpsc;
 use futures::Future;
+use futures::Stream;
 use reqwest::async::Client;
 
 #[derive(Debug)]
 pub enum ActionType {
     Hello,
+    Ping,
 }
 #[derive(Debug)]
 pub struct Action {
     t: ActionType,
 }
+impl Action {
+    pub fn ping() -> Action {
+        Action {
+            t: ActionType::Ping,
+        }
+    }
+}
 type Tx = mpsc::UnboundedSender<Action>;
-type Rx = mpsc::UnboundedReceiver<Action>;
+// type Rx = mpsc::UnboundedReceiver<Action>;
 
 fn main() {
     let config = config::get_config().unwrap();
@@ -43,12 +52,21 @@ fn main() {
                 .and_then(|mut res| res.json::<RtmConnectResponse>())
                 .map(move |resp| {
                     if resp.ok {
-                        workspace.merge(resp, rx);
-                        let url = workspace.ws_url();
+                        resp.team.map(|team| workspace.set_team(team));
+                        resp.me.map(|me| workspace.set_me(me));
+                        let url = resp.url.clone().unwrap();
                         let mut conn = ws::Builder::new().build(rtm::Connection::new(tx)).unwrap();
+                        let sender = conn.broadcaster();
+                        let f = rx.for_each(move |action| {
+                            match action.t {
+                                ActionType::Ping => workspace.ping(&sender),
+                                _ => {}
+                            };
+                            Ok(())
+                        });
+                        tokio::spawn(f);
+
                         conn.connect(url::Url::parse(&url).unwrap()).unwrap();
-                        workspace.set_ws(conn.broadcaster());
-                        tokio::spawn(workspace.process());
                         conn.run().unwrap();
                     } else {
                         panic!(resp.error.unwrap())

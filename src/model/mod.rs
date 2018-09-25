@@ -45,9 +45,9 @@ impl Workspace {
     }
 
     pub fn hello(&mut self, client: &Client) {
-        use api::{conversations_list_request, ConversationsListTypes};
+        use api::conversations::{list_request, ListType};
         println!("Connected to Slack!");
-        let f = conversations_list_request(&self.token, client, ConversationsListTypes::All, None)
+        let f = list_request(&self.token, client, ListType::All, None)
             .send()
             .and_then(|mut res| res.json::<serde_json::Value>())
             .map(|res| {

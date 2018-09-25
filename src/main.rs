@@ -14,7 +14,6 @@ mod api;
 mod config;
 mod model;
 mod rtm;
-use api::RtmConnectResponse;
 use futures::sync::mpsc;
 use futures::Future;
 use futures::Stream;
@@ -55,9 +54,9 @@ fn main() {
             let (tx, rx) = mpsc::unbounded::<Action>();
             let client = client.clone();
 
-            let f = api::rtm_connect_request(&workspace, &client)
+            let f = api::rtm::connect_request(&workspace, &client)
                 .send()
-                .and_then(|mut res| res.json::<RtmConnectResponse>())
+                .and_then(|mut res| res.json::<api::rtm::ConnectResponse>())
                 .map(|resp| {
                     if resp.ok {
                         resp.team.map(|team| workspace.set_team(team));

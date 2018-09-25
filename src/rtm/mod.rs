@@ -55,7 +55,10 @@ impl Handler for Client {
     fn on_timeout(&mut self, event: Token) -> Result<()> {
         match event {
             PING => {
-                self.tx.unbounded_send(Action::ping()).unwrap();
+                match self.tx.unbounded_send(Action::ping()) {
+                    Ok(_) => {}
+                    Err(err) => println!("Failed to send Action::ping: {:?}", err),
+                }
                 self.out.timeout(5000, PING)
             }
             _ => Err(Error::new(ErrorKind::Internal, "Invalid timeout token")),

@@ -15,8 +15,6 @@ mod config;
 mod model;
 mod rtm;
 
-use api::conversations::{ListResponse, ListType};
-use futures::future::{loop_fn, Loop};
 use futures::sync::mpsc;
 use futures::Future;
 use futures::Stream;
@@ -50,8 +48,8 @@ type Tx = mpsc::UnboundedSender<Action>;
 
 fn main() {
     let config = config::get_config().unwrap();
-    let client = Arc::new(Client::new());
-    // let client = client.clone();
+    // let client = Arc::new(Client::new());
+    let client = Client::new();
     // let workspace = config.workspaces[0];
 
     let f = futures::future::ok(config.workspaces).map(move |workspaces| {
@@ -75,48 +73,62 @@ fn main() {
                             let c = c.clone();
 
                             match action.Type {
-                                ActionType::Ping => workspace.lock().unwrap().ping(&sender),
+                                ActionType::Ping => {
+                                    let mut workspace =
+                                        workspace.lock().expect("failed to lock workspace 78");
+                                    workspace.ping(&sender);
+
+                                    println!("TEAM: {}", workspace.team_name());
+                                    println!("public_channels: {:?}", workspace.channels.len());
+                                    println!("private_channels: {:?}", workspace.groups.len());
+                                }
                                 ActionType::Hello => {
-                                    let token = workspace.lock().unwrap().token.clone();
+                                    let token = workspace
+                                        .lock()
+                                        .expect("failed to lock workspace 83")
+                                        .token
+                                        .clone();
+                                    let name = workspace.lock().unwrap().team_name();
+                                    println!("Receive Hello: {}", name);
 
-                                    let public_channels =
-                                        loop_fn(ListResponse::empty(), move |mut res| {
-                                            let next_cursor =
-                                                res.response_metadata.next_cursor.clone();
+                                    use api::conversations::{get_list, ListResponse, ListType};
 
-                                            api::conversations::list_request(
-                                                &token,
-                                                &c,
-                                                ListType::Public,
-                                                Some(&next_cursor),
-                                            ).send()
-                                            .and_then(|mut res| res.json::<ListResponse<Channel>>())
-                                            .and_then(|mut new_res| {
-                                                res.channels.append(&mut new_res.channels);
-                                                res.response_metadata = new_res.response_metadata;
-                                                res.ok = new_res.ok;
+                                    let public_channels = get_list::<Channel>(
+                                        c.clone(),
+                                        token.clone(),
+                                        ListType::Public,
+                                        String::from(""),
+                                    ).map_err(|err| {
+                                        println!("Error in public_channels: {:?}", err);
+                                    });
 
-                                                if res.ok
-                                                    && res.response_metadata.next_cursor.len() > 0
-                                                {
-                                                    Ok(Loop::Continue(res))
-                                                } else {
-                                                    Ok(Loop::Break(res))
-                                                }
-                                            }).map_err(
-                                                |err| {
-                                                    println!("Error in public_channels: {:?}", err);
-                                                },
-                                            )
-                                        });
+                                    let private_channels = get_list::<Group>(
+                                        c.clone(),
+                                        token.clone(),
+                                        ListType::Private,
+                                        String::from(""),
+                                    ).map_err(|err| {
+                                        println!("Error in private_channels: {:?}", err);
+                                    });
 
-                                    tokio::spawn(public_channels.map(
-                                        move |res: ListResponse<Channel>| {
+                                    let f = public_channels.join(private_channels).map(
+                                        move |(public, private)| {
                                             let mut workspace = workspace.lock().unwrap();
-                                            workspace.set_channels(res.channels);
-                                            println!("finished: {:?}", workspace.channels.len());
+                                            workspace.set_channels(public.channels);
+                                            workspace.set_groups(private.channels);
+
+                                            println!("TEAM: {}", name);
+                                            println!(
+                                                "finished public_channels: {:?}",
+                                                workspace.channels.len()
+                                            );
+                                            println!(
+                                                "finished private_channels: {:?}",
+                                                workspace.groups.len()
+                                            );
                                         },
-                                    ));
+                                    );
+                                    tokio::spawn(f);
                                 }
                             };
                             Ok(())

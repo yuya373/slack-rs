@@ -1,6 +1,5 @@
 use api::util::{build_get, ResponseMetadata};
 use reqwest::async::{Client, RequestBuilder};
-use serde_json::Value;
 
 pub enum ListType {
     All,
@@ -11,10 +10,22 @@ pub enum ListType {
 }
 
 #[derive(Debug, Deserialize)]
-struct ListResponse {
-    ok: bool,
-    channels: Vec<Value>,
-    response_metadata: ResponseMetadata,
+pub struct ListResponse<T> {
+    pub ok: bool,
+    pub channels: Vec<T>,
+    pub response_metadata: ResponseMetadata,
+}
+
+impl<T> ListResponse<T> {
+    pub fn empty() -> ListResponse<T> {
+        ListResponse {
+            ok: true,
+            channels: Vec::new(),
+            response_metadata: ResponseMetadata {
+                next_cursor: "".to_string(),
+            },
+        }
+    }
 }
 
 pub fn list_request(
@@ -33,7 +44,7 @@ pub fn list_request(
     };
     let query = [
         ("types", types),
-        ("limit", "100"),
+        ("limit", "10"),
         (
             "cursor",
             match cursor {
@@ -42,6 +53,7 @@ pub fn list_request(
             },
         ),
     ];
+    println!("query: {:?}", query);
     let builder = build_get(client, url, token);
     builder.query(&query)
 }

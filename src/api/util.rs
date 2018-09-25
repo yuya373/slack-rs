@@ -12,5 +12,5 @@ pub fn build_get(client: &Client, url: &str, token: &str) -> RequestBuilder {
 
 #[derive(Debug, Deserialize)]
 pub struct ResponseMetadata {
-    next_cursor: String,
+    pub next_cursor: String,
 }

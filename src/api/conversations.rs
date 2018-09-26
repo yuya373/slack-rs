@@ -32,7 +32,7 @@ impl<T> ListResponse<T> {
     }
 }
 
-pub fn get_list<T>(
+pub fn list<T>(
     client: Client,
     token: String,
     types: ListType,

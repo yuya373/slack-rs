@@ -89,9 +89,9 @@ fn main() {
                                     let name = workspace.lock().unwrap().team_name();
                                     println!("Receive Hello: {}", name);
 
-                                    use api::conversations::{get_list, ListType};
+                                    use api::conversations::{list, ListType};
 
-                                    let public_channels = get_list::<Channel>(
+                                    let public_channels = list::<Channel>(
                                         client.clone(),
                                         token.clone(),
                                         ListType::Public,
@@ -100,7 +100,7 @@ fn main() {
                                         println!("Error in public_channels: {:?}", err);
                                     });
 
-                                    let private_channels = get_list::<Group>(
+                                    let private_channels = list::<Group>(
                                         client.clone(),
                                         token.clone(),
                                         ListType::Private,

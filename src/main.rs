@@ -49,17 +49,16 @@ type Tx = mpsc::UnboundedSender<Action>;
 fn main() {
     let config = config::get_config().unwrap();
     // let client = Arc::new(Client::new());
-    let client = Client::new();
     // let workspace = config.workspaces[0];
 
     let f = futures::future::ok(config.workspaces).map(move |workspaces| {
+        let client = Client::new();
+
         for mut workspace in workspaces {
+            let client = client.clone();
             let (tx, rx) = mpsc::unbounded::<Action>();
 
-            let c = client.clone();
-            let f = api::rtm::connect_request(&workspace, &c)
-                .send()
-                .and_then(|mut res| res.json::<api::rtm::ConnectResponse>())
+            let f = api::rtm::connect(&workspace, client.clone())
                 .map(move |resp| {
                     if resp.ok {
                         resp.team.map(|team| workspace.set_team(team));
@@ -70,7 +69,6 @@ fn main() {
                         let workspace = Arc::new(std::sync::Mutex::new(workspace));
                         let f = rx.for_each(move |action| {
                             let workspace = workspace.clone();
-                            let c = c.clone();
 
                             match action.Type {
                                 ActionType::Ping => {
@@ -91,10 +89,10 @@ fn main() {
                                     let name = workspace.lock().unwrap().team_name();
                                     println!("Receive Hello: {}", name);
 
-                                    use api::conversations::{get_list, ListResponse, ListType};
+                                    use api::conversations::{get_list, ListType};
 
                                     let public_channels = get_list::<Channel>(
-                                        c.clone(),
+                                        client.clone(),
                                         token.clone(),
                                         ListType::Public,
                                         String::from(""),
@@ -103,7 +101,7 @@ fn main() {
                                     });
 
                                     let private_channels = get_list::<Group>(
-                                        c.clone(),
+                                        client.clone(),
                                         token.clone(),
                                         ListType::Private,
                                         String::from(""),

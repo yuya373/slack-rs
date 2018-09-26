@@ -1,7 +1,5 @@
-extern crate ws;
-
 use model::{Channel, Group, Me, Team};
-use ws::{Message, Result, Sender};
+use rtm::{Message, Sender};
 
 #[derive(Deserialize)]
 pub struct Workspace {
@@ -51,15 +49,15 @@ impl Workspace {
         self.me = Some(me);
     }
 
-    fn send(&mut self, sender: &Sender, message: Message) -> Result<()> {
+    fn message_id(&mut self) -> u64 {
+        let v = self.message_id;
         self.message_id += 1;
-        println!("← Outgoing:    {:?}", message);
-        sender.send(message)
+        v
     }
 
-    pub fn ping(&mut self, sender: &Sender) {
-        let id = self.message_id;
+    pub fn ping(&mut self) -> Message {
+        let id = self.message_id();
         let ping = format!("{{\"id\": \"{id}\", \"type\": \"ping\"}}", id = id);
-        self.send(sender, ping.into()).unwrap();
+        ping.into()
     }
 }

@@ -1,108 +1,35 @@
-extern crate serde_json;
-extern crate ws;
+extern crate tokio;
+extern crate tokio_tls;
+extern crate tokio_tungstenite;
+extern crate tungstenite;
+extern crate url;
 
-use super::Action;
-use serde_json::Value;
-use ws::util::Token;
-use ws::{CloseCode, Error, ErrorKind, Factory, Handler, Handshake, Message, Result, Sender};
+use super::Tx;
+use futures::stream::SplitSink;
+use futures::{Future, Stream};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::WebSocketStream;
+pub use tungstenite::{Error, Message};
 
-pub struct Client {
-    out: Sender,
-    tx: super::Tx,
+pub type Sender = SplitSink<
+    WebSocketStream<
+        tokio_tungstenite::stream::Stream<
+            tokio::net::TcpStream,
+            tokio_tls::TlsStream<tokio::net::TcpStream>,
+        >,
+    >,
+>;
+
+pub fn connect(url: &str, tx: Tx) -> impl Future<Item = Sender, Error = Error> {
+    let url = url::Url::parse(url).unwrap();
+    connect_async(url).and_then(move |(ws_stream, _)| {
+        println!("rtm::connect!");
+        let (sink, stream) = ws_stream.split();
+        stream.for_each(|message| {
+            let s = message.into_text();
+            println!("Receive message: {:?}", s);
+            Ok(())
+        });
+        Ok(sink)
+    })
 }
-
-impl Client {
-    fn new(out: Sender, tx: super::Tx) -> Client {
-        Client { out, tx }
-    }
-}
-
-const PING: Token = Token(0);
-impl Handler for Client {
-    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
-        // println!("Handshake: {:?}", shake);
-        println!("Connection Opened");
-        self.out.timeout(5000, PING)?;
-        Ok(())
-    }
-
-    fn on_message(&mut self, message: Message) -> Result<()> {
-        println!("→ Incoming:    {:?}", message);
-        let value: Value = serde_json::from_str(message.as_text()?).unwrap();
-        let message_type = &value["type"].as_str();
-        match message_type {
-            Some("hello") => self.tx.unbounded_send(Action::hello()),
-            _ => Ok(()),
-        }.unwrap();
-        Ok(())
-    }
-
-    fn on_close(&mut self, code: CloseCode, reason: &str) {
-        match code {
-            CloseCode::Normal => println!("The server is done with the connection."),
-            CloseCode::Away => println!("The server is leaving"),
-            _ => println!(
-                "The server encountered an error: {:?} -> {:?}",
-                code, reason
-            ),
-        }
-    }
-
-    fn on_error(&mut self, err: Error) {
-        println!("Error in rtm: {:?}", err);
-    }
-
-    fn on_timeout(&mut self, event: Token) -> Result<()> {
-        match event {
-            PING => {
-                match self.tx.unbounded_send(Action::ping()) {
-                    Ok(_) => {}
-                    Err(err) => println!("Failed to send Action::ping: {:?}", err),
-                }
-                self.out.timeout(5000, PING)
-            }
-            _ => Err(Error::new(ErrorKind::Internal, "Invalid timeout token")),
-        }
-    }
-
-    fn on_shutdown(&mut self) {
-        println!("Client.on_shutdown ");
-    }
-}
-
-pub struct Connection {
-    tx: super::Tx,
-}
-impl Connection {
-    pub fn new(tx: super::Tx) -> Connection {
-        Connection { tx }
-    }
-}
-impl Factory for Connection {
-    type Handler = Client;
-
-    fn connection_made(&mut self, out: Sender) -> Self::Handler {
-        Client::new(out, self.tx.clone())
-    }
-
-    fn client_connected(&mut self, out: Sender) -> Self::Handler {
-        Client::new(out, self.tx.clone())
-    }
-
-    fn connection_lost(&mut self, _: Self::Handler) {
-        println!("Connection.connection_lost");
-    }
-
-    fn on_shutdown(&mut self) {
-        println!("Connection.on_shutdown");
-    }
-}
-
-// pub fn connect(url: &str, tx: super::Tx) -> Result<&mut WebSocket<Connection>> {
-//     let conn = ws::Builder::new().build(Connection { tx })?;
-//     conn.connect(Url::parse(url).unwrap())
-//     // let handle = conn.broadcaster();
-//     // conn.run();
-//     // Ok(handle)
-//     // ws::connect(url, |out| Client::new(out, tx.clone())).unwrap()
-// }

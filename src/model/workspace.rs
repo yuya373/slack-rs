@@ -1,5 +1,5 @@
 use model::{Channel, Group, Me, Team};
-use rtm::{Message, Sender};
+use rtm::Message;
 
 #[derive(Deserialize)]
 pub struct Workspace {

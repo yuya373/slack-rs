@@ -125,21 +125,23 @@ fn main() {
                                             .join(private_channels)
                                             .map_err(|err| {
                                                 println!("Failed to list channels: {:?}", err)
-                                            }).map(move |(public, private)| {
-                                                let mut workspace = workspace.lock().unwrap();
-                                                workspace.set_channels(public.channels);
-                                                workspace.set_groups(private.channels);
+                                            }).map(
+                                                move |(public, private)| {
+                                                    let mut workspace = workspace.lock().unwrap();
+                                                    workspace.set_channels(public.channels);
+                                                    workspace.set_groups(private.channels);
 
-                                                println!("TEAM: {}", name);
-                                                println!(
-                                                    "finished public_channels: {:?}",
-                                                    workspace.channels.len()
-                                                );
-                                                println!(
-                                                    "finished private_channels: {:?}",
-                                                    workspace.groups.len()
-                                                );
-                                            });
+                                                    println!("TEAM: {}", name);
+                                                    println!(
+                                                        "finished public_channels: {:?}",
+                                                        workspace.channels.len()
+                                                    );
+                                                    println!(
+                                                        "finished private_channels: {:?}",
+                                                        workspace.groups.len()
+                                                    );
+                                                },
+                                            );
                                         tokio::spawn(f);
                                     }
                                 };
@@ -168,15 +170,7 @@ fn main() {
                                     Ok(())
                                 }).map_err(|err| println!("failed to handle message: {:?}", err));
 
-                            let tx2 = tx.clone();
-                            let h = tokio_timer::Interval::new(
-                                std::time::Instant::now(),
-                                std::time::Duration::from_secs(5),
-                            ).for_each(move |_| {
-                                let tx = &tx2;
-                                tx.unbounded_send(Action::ping()).unwrap();
-                                Ok(())
-                            }).map_err(|err| println!("Failed to send action Ping: {:?}", err));
+                            let h = rtm::ping_timer(tx.clone());
 
                             f.join3(g, h).map_err(|err| println!("{:?}", err))
                         })

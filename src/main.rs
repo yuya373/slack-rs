@@ -4,6 +4,7 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 extern crate tokio;
+extern crate tokio_timer;
 extern crate tokio_tungstenite;
 extern crate toml;
 extern crate tungstenite;
@@ -124,43 +125,60 @@ fn main() {
                                             .join(private_channels)
                                             .map_err(|err| {
                                                 println!("Failed to list channels: {:?}", err)
-                                            }).map(
-                                                move |(public, private)| {
-                                                    let mut workspace = workspace.lock().unwrap();
-                                                    workspace.set_channels(public.channels);
-                                                    workspace.set_groups(private.channels);
+                                            }).map(move |(public, private)| {
+                                                let mut workspace = workspace.lock().unwrap();
+                                                workspace.set_channels(public.channels);
+                                                workspace.set_groups(private.channels);
 
-                                                    println!("TEAM: {}", name);
-                                                    println!(
-                                                        "finished public_channels: {:?}",
-                                                        workspace.channels.len()
-                                                    );
-                                                    println!(
-                                                        "finished private_channels: {:?}",
-                                                        workspace.groups.len()
-                                                    );
-                                                },
-                                            );
+                                                println!("TEAM: {}", name);
+                                                println!(
+                                                    "finished public_channels: {:?}",
+                                                    workspace.channels.len()
+                                                );
+                                                println!(
+                                                    "finished private_channels: {:?}",
+                                                    workspace.groups.len()
+                                                );
+                                            });
                                         tokio::spawn(f);
                                     }
                                 };
                                 Ok(())
                             });
 
+                            #[derive(Deserialize, Debug)]
+                            struct MessageType<'a> {
+                                #[serde(rename = "type")]
+                                Type: &'a str,
+                            }
+
+                            let tx1 = tx.clone();
                             let g = stream
                                 .for_each(move |message| {
-                                    let s = message.to_text();
-                                    println!("Receive message: {:?}", s);
-                                    match s {
-                                        Ok("{\"type\": \"hello\"}") => {
-                                            tx.unbounded_send(Action::hello()).unwrap()
+                                    let m: MessageType =
+                                        serde_json::from_str(message.to_text().unwrap()).unwrap();
+                                    let tx = &tx1;
+
+                                    match m.Type {
+                                        "hello" => tx.unbounded_send(Action::hello()).unwrap(),
+                                        _ => {
+                                            println!("Receive message: {:?}", m);
                                         }
-                                        _ => {}
                                     }
                                     Ok(())
                                 }).map_err(|err| println!("failed to handle message: {:?}", err));
 
-                            f.join(g).map_err(|err| println!("{:?}", err))
+                            let tx2 = tx.clone();
+                            let h = tokio_timer::Interval::new(
+                                std::time::Instant::now(),
+                                std::time::Duration::from_secs(5),
+                            ).for_each(move |_| {
+                                let tx = &tx2;
+                                tx.unbounded_send(Action::ping()).unwrap();
+                                Ok(())
+                            }).map_err(|err| println!("Failed to send action Ping: {:?}", err));
+
+                            f.join3(g, h).map_err(|err| println!("{:?}", err))
                         })
                 }),
         );

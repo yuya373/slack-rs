@@ -5,6 +5,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate tokio;
 extern crate tokio_timer;
+extern crate tokio_tls;
 extern crate tokio_tungstenite;
 extern crate toml;
 extern crate tungstenite;
@@ -77,32 +78,18 @@ fn main() {
 
                             let f = rx.for_each(move |action| {
                                 let workspace = workspace.clone();
-                                let sender = sender.clone();
+                                // let sender = sender.clone();
 
                                 match action.Type {
                                     ActionType::Ping => {
-                                        let mut workspace =
-                                            workspace.lock().expect("failed to lock workspace 78");
-
-                                        println!("TEAM: {}", workspace.team_name());
-                                        println!("public_channels: {:?}", workspace.channels.len());
-                                        println!("private_channels: {:?}", workspace.groups.len());
+                                        let mut workspace = workspace.lock().unwrap();
                                         let mut sender = sender.lock().unwrap();
-                                        sender.start_send(workspace.ping());
-                                        sender.poll_complete();
-                                        // futures::future::poll_fn(|| sender.poll_complete())
+                                        model::Workspace::handle_ping(&mut sender, &mut workspace);
                                     }
                                     ActionType::Hello => {
-                                        let token = workspace
-                                            .lock()
-                                            .expect("failed to lock workspace 83")
-                                            .token
-                                            .clone();
+                                        let token = workspace.lock().unwrap().token.clone();
                                         let name = workspace.lock().unwrap().team_name();
-                                        println!("Receive Hello: {}", name);
-
                                         use api::conversations::{list, ListType};
-
                                         let public_channels = list::<Channel>(
                                             client.clone(),
                                             token.clone(),
@@ -111,7 +98,6 @@ fn main() {
                                         ).map_err(|err| {
                                             println!("Error in public_channels: {:?}", err);
                                         });
-
                                         let private_channels = list::<Group>(
                                             client.clone(),
                                             token.clone(),
@@ -120,28 +106,25 @@ fn main() {
                                         ).map_err(|err| {
                                             println!("Error in private_channels: {:?}", err);
                                         });
-
                                         let f = public_channels
                                             .join(private_channels)
                                             .map_err(|err| {
                                                 println!("Failed to list channels: {:?}", err)
-                                            }).map(
-                                                move |(public, private)| {
-                                                    let mut workspace = workspace.lock().unwrap();
-                                                    workspace.set_channels(public.channels);
-                                                    workspace.set_groups(private.channels);
+                                            }).map(move |(public, private)| {
+                                                let mut workspace = workspace.lock().unwrap();
+                                                workspace.set_channels(public.channels);
+                                                workspace.set_groups(private.channels);
 
-                                                    println!("TEAM: {}", name);
-                                                    println!(
-                                                        "finished public_channels: {:?}",
-                                                        workspace.channels.len()
-                                                    );
-                                                    println!(
-                                                        "finished private_channels: {:?}",
-                                                        workspace.groups.len()
-                                                    );
-                                                },
-                                            );
+                                                println!("TEAM: {}", name);
+                                                println!(
+                                                    "finished public_channels: {:?}",
+                                                    workspace.channels.len()
+                                                );
+                                                println!(
+                                                    "finished private_channels: {:?}",
+                                                    workspace.groups.len()
+                                                );
+                                            });
                                         tokio::spawn(f);
                                     }
                                 };

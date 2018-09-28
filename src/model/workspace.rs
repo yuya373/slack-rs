@@ -1,5 +1,6 @@
+use futures::Sink;
 use model::{Channel, Group, Me, Team};
-use rtm::Message;
+use rtm::{Message, Sender};
 
 #[derive(Deserialize)]
 pub struct Workspace {
@@ -59,5 +60,13 @@ impl Workspace {
         let id = self.message_id();
         let ping = format!("{{\"id\": \"{id}\", \"type\": \"ping\"}}", id = id);
         ping.into()
+    }
+
+    pub fn handle_ping(sender: &mut Sender, workspace: &mut Self) {
+        println!("TEAM: {}", workspace.team_name());
+        println!("public_channels: {:?}", workspace.channels.len());
+        println!("private_channels: {:?}", workspace.groups.len());
+        sender.start_send(workspace.ping());
+        sender.poll_complete();
     }
 }

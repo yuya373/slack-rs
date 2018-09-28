@@ -148,25 +148,10 @@ fn main() {
                                 Ok(())
                             });
 
-                            #[derive(Deserialize, Debug)]
-                            struct MessageType<'a> {
-                                #[serde(rename = "type")]
-                                Type: &'a str,
-                            }
-
                             let tx1 = tx.clone();
                             let g = stream
                                 .for_each(move |message| {
-                                    let m: MessageType =
-                                        serde_json::from_str(message.to_text().unwrap()).unwrap();
-                                    let tx = &tx1;
-
-                                    match m.Type {
-                                        "hello" => tx.unbounded_send(Action::hello()).unwrap(),
-                                        _ => {
-                                            println!("Receive message: {:?}", m);
-                                        }
-                                    }
+                                    rtm::handle_message(tx1.clone(), message).unwrap();
                                     Ok(())
                                 }).map_err(|err| println!("failed to handle message: {:?}", err));
 

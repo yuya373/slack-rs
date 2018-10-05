@@ -85,7 +85,8 @@ fn main() {
                                     ActionType::Ping => {
                                         let mut workspace = workspace.lock().unwrap();
                                         let mut sender = sender.lock().unwrap();
-                                        Workspace::handle_ping(&mut sender, &mut workspace);
+                                        Workspace::handle_ping(&mut sender, &mut workspace)
+                                            .unwrap();
                                     }
                                     ActionType::Hello => {
                                         let token = workspace.lock().unwrap().token.clone();

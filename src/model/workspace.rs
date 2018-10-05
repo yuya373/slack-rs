@@ -1,10 +1,11 @@
 use api::conversations::ListResponse;
 use futures::future;
-use futures::{Future, Sink};
+use futures::{Async, Future, Sink};
 use model::{Channel, Group, Im, Me, Mpim, Team};
 use reqwest;
 use reqwest::async::Client;
 use rtm::{Message, Sender};
+use tungstenite;
 
 #[derive(Deserialize)]
 pub struct Workspace {
@@ -86,14 +87,17 @@ impl Workspace {
         ping.into()
     }
 
-    pub fn handle_ping(sender: &mut Sender, workspace: &mut Self) {
+    pub fn handle_ping(
+        sender: &mut Sender,
+        workspace: &mut Self,
+    ) -> Result<Async<()>, tungstenite::Error> {
         println!("TEAM: {}", workspace.team_name());
         println!("public_channels: {:?}", workspace.channels.len());
         println!("private_channels: {:?}", workspace.groups.len());
         println!("ims: {:?}", workspace.ims.len());
         println!("mpims: {:?}", workspace.mpims.len());
-        sender.start_send(workspace.ping());
-        sender.poll_complete();
+        sender.start_send(workspace.ping())?;
+        sender.poll_complete()
     }
 
     pub fn handle_hello(

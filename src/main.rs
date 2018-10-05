@@ -1,3 +1,4 @@
+#![recursion_limit = "128"]
 extern crate dirs;
 extern crate futures;
 extern crate reqwest;
@@ -22,7 +23,7 @@ use futures::sync::mpsc;
 use futures::Future;
 use futures::Sink;
 use futures::Stream;
-use model::{Channel, Group, Im, Me, Mpim, Team};
+use model::{Channel, Group, Im, Me, Mpim, Team, Workspace};
 use reqwest::async::Client;
 use std::sync::Arc;
 
@@ -84,46 +85,19 @@ fn main() {
                                     ActionType::Ping => {
                                         let mut workspace = workspace.lock().unwrap();
                                         let mut sender = sender.lock().unwrap();
-                                        model::Workspace::handle_ping(&mut sender, &mut workspace);
+                                        Workspace::handle_ping(&mut sender, &mut workspace);
                                     }
                                     ActionType::Hello => {
                                         let token = workspace.lock().unwrap().token.clone();
-                                        let name = workspace.lock().unwrap().team_name();
-                                        use api::conversations::{list, ListType};
-                                        let public_channels = list::<Channel>(
-                                            client.clone(),
-                                            token.clone(),
-                                            ListType::Public,
-                                            String::from(""),
-                                        ).map_err(|err| {
-                                            println!("Error in public_channels: {:?}", err);
-                                        });
-                                        let private_channels = list::<Group>(
-                                            client.clone(),
-                                            token.clone(),
-                                            ListType::Private,
-                                            String::from(""),
-                                        ).map_err(|err| {
-                                            println!("Error in private_channels: {:?}", err);
-                                        });
-                                        let f = public_channels
-                                            .join(private_channels)
-                                            .map_err(|err| {
-                                                println!("Failed to list channels: {:?}", err)
-                                            }).map(move |(public, private)| {
+                                        let f = Workspace::handle_hello(token, client.clone())
+                                            .map(move |(public, private, im, mpim)| {
                                                 let mut workspace = workspace.lock().unwrap();
                                                 workspace.set_channels(public.channels);
                                                 workspace.set_groups(private.channels);
-
-                                                println!("TEAM: {}", name);
-                                                println!(
-                                                    "finished public_channels: {:?}",
-                                                    workspace.channels.len()
-                                                );
-                                                println!(
-                                                    "finished private_channels: {:?}",
-                                                    workspace.groups.len()
-                                                );
+                                                workspace.set_ims(im.channels);
+                                                workspace.set_mpims(mpim.channels);
+                                            }).map_err(|err| {
+                                                println!("Error in handle_hello: {:?}", err)
                                             });
                                         tokio::spawn(f);
                                     }

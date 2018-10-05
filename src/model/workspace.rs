@@ -1,5 +1,9 @@
-use futures::Sink;
-use model::{Channel, Group, Me, Team};
+use api::conversations::ListResponse;
+use futures::future;
+use futures::{Future, Sink};
+use model::{Channel, Group, Im, Me, Mpim, Team};
+use reqwest;
+use reqwest::async::Client;
 use rtm::{Message, Sender};
 
 #[derive(Deserialize)]
@@ -13,8 +17,20 @@ pub struct Workspace {
     pub channels: Vec<Channel>,
     #[serde(default = "Workspace::init_groups")]
     pub groups: Vec<Group>,
+    #[serde(default = "Workspace::init_ims")]
+    pub ims: Vec<Im>,
+    #[serde(default = "Workspace::init_mpims")]
+    pub mpims: Vec<Mpim>,
 }
 impl Workspace {
+    fn init_mpims() -> Vec<Mpim> {
+        Vec::new()
+    }
+
+    fn init_ims() -> Vec<Im> {
+        Vec::new()
+    }
+
     fn init_groups() -> Vec<Group> {
         Vec::new()
     }
@@ -42,6 +58,14 @@ impl Workspace {
         self.channels = channels;
     }
 
+    pub fn set_ims(&mut self, ims: Vec<Im>) {
+        self.ims = ims;
+    }
+
+    pub fn set_mpims(&mut self, mpims: Vec<Mpim>) {
+        self.mpims = mpims;
+    }
+
     pub fn set_team(&mut self, team: Team) {
         self.team = Some(team);
     }
@@ -66,7 +90,33 @@ impl Workspace {
         println!("TEAM: {}", workspace.team_name());
         println!("public_channels: {:?}", workspace.channels.len());
         println!("private_channels: {:?}", workspace.groups.len());
+        println!("ims: {:?}", workspace.ims.len());
+        println!("mpims: {:?}", workspace.mpims.len());
         sender.start_send(workspace.ping());
         sender.poll_complete();
+    }
+
+    pub fn handle_hello(
+        token: String,
+        client: Client,
+    ) -> impl Future<
+        Item = (
+            ListResponse<Channel>,
+            ListResponse<Group>,
+            ListResponse<Im>,
+            ListResponse<Mpim>,
+        ),
+        Error = reqwest::Error,
+    > {
+        use api::conversations::{list, ListType};
+        let public_channels = list::<Channel>(client.clone(), token.clone(), ListType::Public, "");
+        let private_channels = list::<Group>(client.clone(), token.clone(), ListType::Private, "");
+        let ims = list::<Im>(client.clone(), token.clone(), ListType::Im, "");
+        let mpims = list::<Mpim>(client.clone(), token.clone(), ListType::Mpim, "");
+        public_channels
+            .join(private_channels)
+            .join(ims)
+            .join(mpims)
+            .map(|(((public, private), im), mpim)| (public, private, im, mpim))
     }
 }

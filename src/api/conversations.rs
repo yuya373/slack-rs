@@ -36,7 +36,7 @@ pub fn list<T>(
     client: Client,
     token: String,
     types: ListType,
-    cursor: String,
+    cursor: &str,
 ) -> impl Future<Item = ListResponse<T>, Error = reqwest::Error>
 where
     for<'de> T: serde::Deserialize<'de>,
@@ -51,7 +51,7 @@ where
     println!("get_list");
 
     loop_fn(
-        (client, token, ListResponse::empty(cursor)),
+        (client, token, ListResponse::empty(String::from(cursor))),
         move |(client, token, mut res)| {
             let url = "https://slack.com/api/conversations.list";
             let next_cursor = res.response_metadata.next_cursor.clone();
